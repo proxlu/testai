@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>aitest</title>
+    <style>
+        #chat { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; margin-bottom: 10px; }
+        #mensagem { width: 80%; padding: 8px; }
+        button { padding: 8px 15px; }
+    </style>
+</head>
+<body>
+    <div id="chat"></div>
+    <input id="mensagem" type="text" placeholder="Pergunte algo..." autofocus>
+    <button onclick="enviar()">Enviar</button>
+
+    <script>
+        // Configurações da IA
+        const API_KEY = "CHAVE_CHAVE_CHAVE"; // Substitua pela sua chave
+        const SYSTEM_PROMPT = {
+            role: "model",
+            parts: [{
+                text: "Você é uma IA especializada em ajudar desenvolvedores. Seja concisa, técnica e evite rodeios. Responda em português."
+            }]
+        };
+
+        // Recupera o histórico da sessão ou inicia novo
+        let historico = JSON.parse(sessionStorage.getItem("geminiChat") || "[]");
+        const chatDiv = document.getElementById("chat");
+
+        // Exibe o histórico ao carregar
+        function exibirChat() {
+            chatDiv.innerHTML = historico.map(msg => 
+                `<p><strong>${msg.role === 'user' ? 'Você' : 'IA'}:</strong> ${msg.parts[0].text}</p>`
+            ).join("");
+            chatDiv.scrollTop = chatDiv.scrollHeight;
+        }
+        exibirChat();
+
+        // Envia mensagem para o Gemini
+        async function enviar() {
+            const input = document.getElementById("mensagem");
+            const mensagemUsuario = input.value.trim();
+            if (!mensagemUsuario) return;
+
+            // Adiciona mensagem do usuário ao histórico
+            historico.push({ role: "user", parts: [{ text: mensagemUsuario }] });
+            sessionStorage.setItem("geminiChat", JSON.stringify(historico));
+            exibirChat();
+            input.value = "";
+
+            // Chama a API do Gemini 1.5 Flash
+            const resposta = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contents: [SYSTEM_PROMPT, ...historico],
+                        generationConfig: { temperature: 0.7 }
+                    })
+                }
+            );
+
+            const dados = await resposta.json();
+            const textoIA = dados.candidates[0].content.parts[0].text;
+
+            // Adiciona resposta ao histórico
+            historico.push({ role: "model", parts: [{ text: textoIA }] });
+            sessionStorage.setItem("geminiChat", JSON.stringify(historico));
+            exibirChat();
+        }
+
+        // Enviar ao pressionar Enter
+        document.getElementById("mensagem").addEventListener("keypress", (e) => {
+            if (e.key === "Enter") enviar();
+        });
+    </script>
+</body>
+</html>
